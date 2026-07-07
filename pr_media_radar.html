@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>두호 PR 미디어 레이더</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0E1A;
+    --surface:#121729;
+    --card:#1A2138;
+    --card-hover:#212a45;
+    --border:#2A3350;
+    --text:#E8ECF5;
+    --text-dim:#8B93A8;
+    --text-faint:#586082;
+    --signal:#FF8A3D;
+    --signal-dim:#7a4622;
+    --pos:#4FD1A5;
+    --neg:#FF6B6B;
+    --neu:#8B93A8;
+    --mono:'JetBrains Mono', monospace;
+    --sans:'Pretendard', -apple-system, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  body{min-height:100vh;}
+
+  /* ---------- TICKER ---------- */
+  .ticker-wrap{
+    background:var(--surface);
+    border-bottom:1px solid var(--border);
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    height:38px;
+    position:sticky; top:0; z-index:50;
+  }
+  .live-badge{
+    flex:0 0 auto;
+    display:flex; align-items:center; gap:6px;
+    background:var(--signal);
+    color:#1a0f04;
+    font-family:var(--mono);
+    font-weight:700;
+    font-size:11px;
+    letter-spacing:.05em;
+    padding:0 12px;
+    height:100%;
+  }
+  .live-dot{width:6px;height:6px;border-radius:50%;background:#1a0f04;animation:blink 1.4s infinite;}
+  @keyframes blink{0%,100%{opacity:1;}50%{opacity:.2;}}
+  .ticker-track{
+    display:flex; white-space:nowrap;
+    animation:scrollTicker 40s linear infinite;
+    font-family:var(--mono);
+    font-size:12.5px;
+    color:var(--text-dim);
+  }
+  .ticker-track span{padding:0 28px; border-right:1px solid var(--border);}
+  @keyframes scrollTicker{from{transform:translateX(0);}to{transform:translateX(-50%);}}
+
+  /* ---------- HEADER ---------- */
+  header{
+    padding:28px 32px 20px;
+    display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;
+    border-bottom:1px solid var(--border);
+  }
+  .brand-eyebrow{font-family:var(--mono);font-size:11px;color:var(--signal);letter-spacing:.12em;margin:0 0 6px;}
+  h1{font-size:26px;margin:0;font-weight:800;letter-spacing:-.02em;}
+  .header-right{display:flex;gap:10px;align-items:center;}
+  .btn{
+    font-family:var(--sans); font-size:13px; font-weight:600;
+    padding:9px 16px; border-radius:8px; border:1px solid var(--border);
+    background:var(--card); color:var(--text); cursor:pointer; transition:.15s;
+  }
+  .btn:hover{background:var(--card-hover);border-color:var(--signal-dim);}
+  .btn.primary{background:var(--signal);color:#1a0f04;border-color:var(--signal);}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* ---------- LAYOUT ---------- */
+  .layout{display:grid; grid-template-columns:220px 1fr 260px; gap:0; min-height:calc(100vh - 106px);}
+  @media (max-width:980px){.layout{grid-template-columns:1fr;} .sidebar,.rightpanel{border:none !important;}}
+
+  .sidebar{border-right:1px solid var(--border); padding:22px 18px;}
+  .sidebar h3, .rightpanel h3{
+    font-family:var(--mono); font-size:11px; color:var(--text-faint);
+    letter-spacing:.1em; margin:0 0 12px; text-transform:uppercase;
+  }
+  .chip-list{display:flex;flex-direction:column;gap:6px;}
+  .chip{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 10px; border-radius:7px; border:1px solid transparent;
+    font-size:13.5px; cursor:pointer; color:var(--text-dim); transition:.12s;
+  }
+  .chip:hover{background:var(--card);}
+  .chip.active{background:var(--card); border-color:var(--signal-dim); color:var(--text); font-weight:600;}
+  .chip .count{font-family:var(--mono); font-size:11px; color:var(--text-faint);}
+  .chip-remove{color:var(--text-faint); padding:0 2px; border-radius:4px;}
+  .chip-remove:hover{color:var(--neg);}
+  .add-keyword{display:flex; gap:6px; margin-top:14px;}
+  .add-keyword input{
+    flex:1; background:var(--card); border:1px solid var(--border); border-radius:7px;
+    color:var(--text); padding:7px 9px; font-size:13px; font-family:var(--sans);
+  }
+  .add-keyword button{
+    background:var(--card); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:7px; padding:0 10px; cursor:pointer; font-weight:700;
+  }
+
+  .main{padding:22px 26px; overflow-y:auto;}
+  .main-toolbar{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
+  .status-line{font-family:var(--mono); font-size:11.5px; color:var(--text-faint);}
+  .status-line b{color:var(--pos);}
+
+  .cards{display:flex; flex-direction:column; gap:10px;}
+  .article-card{
+    background:var(--card); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px; transition:.15s;
+  }
+  .article-card:hover{border-color:var(--signal-dim);}
+  .card-top{display:flex; justify-content:space-between; gap:12px; align-items:flex-start;}
+  .card-title{font-size:14.5px; font-weight:700; line-height:1.4; margin:0 0 6px;}
+  .card-title a{color:var(--text); text-decoration:none;}
+  .card-title a:hover{color:var(--signal);}
+  .card-desc{font-size:12.5px; color:var(--text-dim); line-height:1.5; margin:0 0 10px;}
+  .card-meta{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .badge{
+    font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:5px; font-weight:600;
+  }
+  .badge.press{background:#232b46; color:var(--text-dim);}
+  .badge.date{background:none; color:var(--text-dim); padding:3px 0;}
+  .badge.keyword{background:var(--signal-dim); color:#ffcda0;}
+  .badge.pos{background:#123329; color:var(--pos);}
+  .badge.neg{background:#3a1c1c; color:var(--neg);}
+  .badge.neu{background:#242938; color:var(--neu);}
+  .badge.time{color:var(--text-faint); background:none; padding:3px 0;}
+
+  .empty-state{
+    text-align:center; padding:60px 20px; color:var(--text-faint);
+  }
+  .empty-state h4{color:var(--text-dim); font-size:15px; margin:0 0 8px;}
+
+  /* ---------- RIGHT PANEL ---------- */
+  .rightpanel{border-left:1px solid var(--border); padding:22px 18px;}
+  .stat-block{margin-bottom:26px;}
+  .stat-big{font-family:var(--mono); font-size:32px; font-weight:700; color:var(--text);}
+  .stat-label{font-size:12px; color:var(--text-faint); margin-top:2px;}
+  .sentiment-bar{display:flex; height:8px; border-radius:4px; overflow:hidden; margin:10px 0 8px; background:var(--border);}
+  .sentiment-legend{display:flex; flex-direction:column; gap:5px; font-size:11.5px; color:var(--text-dim);}
+  .sentiment-legend span.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;}
+
+  .kw-bar-row{display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:11.5px;}
+  .kw-bar-row .kw-name{width:76px; color:var(--text-dim); flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .kw-bar-track{flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden;}
+  .kw-bar-fill{height:100%; background:var(--signal);}
+  .kw-bar-num{font-family:var(--mono); color:var(--text-faint); width:22px; text-align:right;}
+
+  /* ---------- AI BRIEFING MODAL ---------- */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none;
+    align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px;
+    max-width:560px; width:100%; max-height:80vh; overflow-y:auto; padding:24px;
+  }
+  .modal h2{margin:0 0 4px; font-size:18px;}
+  .modal .sub{font-size:12px; color:var(--text-faint); margin:0 0 18px; font-family:var(--mono);}
+  .modal-body{font-size:13.5px; line-height:1.7; color:var(--text-dim); white-space:pre-wrap;}
+  .modal-close{float:right; background:none; border:none; color:var(--text-faint); font-size:20px; cursor:pointer;}
+  .modal input, .modal textarea{
+    width:100%; background:var(--card); border:1px solid var(--border); border-radius:8px;
+    color:var(--text); padding:9px 11px; font-size:13px; font-family:var(--sans); margin-top:6px;
+  }
+  .modal label{font-size:12px; color:var(--text-dim); display:block; margin-top:14px;}
+  .spinner{
+    width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--signal);
+    border-radius:50%; display:inline-block; animation:spin .7s linear infinite; vertical-align:middle;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<div class="ticker-wrap">
+  <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<header>
+  <div>
+    <p class="brand-eyebrow">DUHO CORPORATION · PR TEAM</p>
+    <h1>미디어 레이더</h1>
+  </div>
+  <div class="header-right">
+    <button class="btn" id="briefingBtn">AI 브리핑 생성</button>
+    <button class="btn" id="settingsBtn">데이터 연결 설정</button>
+    <button class="btn primary" id="refreshBtn">새로고침</button>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="sidebar">
+    <h3>키워드 / 크리에이터</h3>
+    <div class="chip-list" id="chipList"></div>
+    <div class="add-keyword">
+      <input type="text" id="newKeywordInput" placeholder="키워드 추가" />
+      <button id="addKeywordBtn">+</button>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="main-toolbar">
+      <div class="status-line" id="statusLine">데모 데이터 표시 중 · 실데이터 연결은 [데이터 연결 설정]에서</div>
+    </div>
+    <div class="cards" id="cardsContainer"></div>
+  </div>
+
+  <div class="rightpanel">
+    <div class="stat-block">
+      <div class="stat-big" id="statTotal">0</div>
+      <div class="stat-label">전체 수집 기사</div>
+    </div>
+    <div class="stat-block">
+      <div class="stat-big" id="statToday">0</div>
+      <div class="stat-label">오늘 신규</div>
+    </div>
+    <div class="stat-block">
+      <h3>감성 분포</h3>
+      <div class="sentiment-bar" id="sentimentBar"></div>
+      <div class="sentiment-legend">
+        <div><span class="dot" style="background:var(--pos)"></span>긍정 <span id="pctPos" style="float:right"></span></div>
+        <div><span class="dot" style="background:var(--neu)"></span>중립 <span id="pctNeu" style="float:right"></span></div>
+        <div><span class="dot" style="background:var(--neg)"></span>부정 <span id="pctNeg" style="float:right"></span></div>
+      </div>
+    </div>
+    <div class="stat-block">
+      <h3>키워드별 건수</h3>
+      <div id="kwBars"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <button class="modal-close" data-close="settingsModal">&times;</button>
+    <h2>데이터 연결 설정</h2>
+    <p class="sub">Google Apps Script 웹 앱 URL을 연결하면 실제 네이버 뉴스 데이터로 전환됩니다.</p>
+    <label>Apps Script 웹 앱 URL</label>
+    <input type="text" id="appsScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" />
+    <label style="margin-top:18px;">Anthropic API로 AI 브리핑을 사용합니다 (별도 키 입력 불필요)</label>
+    <div style="margin-top:20px; display:flex; gap:8px; justify-content:flex-end;">
+      <button class="btn" data-close="settingsModal">취소</button>
+      <button class="btn primary" id="saveSettingsBtn">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Briefing modal -->
+<div class="modal-overlay" id="briefingModal">
+  <div class="modal">
+    <button class="modal-close" data-close="briefingModal">&times;</button>
+    <h2>AI 데일리 브리핑</h2>
+    <p class="sub" id="briefingSub">현재 필터된 기사 기준 자동 생성</p>
+    <div class="modal-body" id="briefingBody">브리핑을 생성하려면 상단 [AI 브리핑 생성] 버튼을 눌러주세요.</div>
+  </div>
+</div>
+
+<script>
+/* ============ 데모 데이터 (실데이터 미연결 시 표시) ============ */
+const DEMO_ITEMS = [
+  {keyword:'하우스 오브 피스', title:'두호코퍼레이션, "하우스 오브 피스" 시즌2 제작 발표', description:'MCN 두호코퍼레이션이 크리에이터 협업 예능 하우스 오브 피스 시즌2 제작을 공식화했다.', press:'스포츠서울', pubDate:new Date(Date.now()-3600e3).toUTCString(), collectedAt:new Date(Date.now()-3600e3), link:'#'},
+  {keyword:'백진경', title:'백진경, 피자에땅과 콜라보 콘텐츠 화제', description:'크리에이터 백진경이 피자에땅과 협업한 콘텐츠가 SNS에서 높은 반응을 얻고 있다.', press:'뉴스1', pubDate:new Date(Date.now()-7200e3).toUTCString(), collectedAt:new Date(Date.now()-7200e3), link:'#'},
+  {keyword:'그믐', title:'그믐×오드타입 공동구매, 하루 만에 완판 행렬', description:'크리에이터 그믐이 진행한 오드타입과의 공동구매가 출시 하루 만에 매진됐다.', press:'이데일리', pubDate:new Date(Date.now()-10800e3).toUTCString(), collectedAt:new Date(Date.now()-10800e3), link:'#'},
+  {keyword:'유병권', title:'유병권, 리필드 마켓과 친환경 캠페인 진행', description:'유병권이 리필드 마켓과 함께 진행한 친환경 소비 캠페인이 긍정적 평가를 받았다.', press:'헤럴드경제', pubDate:new Date(Date.now()-14400e3).toUTCString(), collectedAt:new Date(Date.now()-14400e3), link:'#'},
+  {keyword:'채도', title:'"색채도감" 채도, 신규 콘텐츠 시리즈 공개', description:'컬러 콘텐츠 채널 채도가 새로운 시리즈 공개 계획을 밝혔다.', press:'텐아시아', pubDate:new Date(Date.now()-18000e3).toUTCString(), collectedAt:new Date(Date.now()-18000e3), link:'#'},
+  {keyword:'두호코퍼레이션', title:'두호코퍼레이션, 상반기 소속 크리에이터 성과 발표', description:'MCN 두호코퍼레이션이 상반기 소속 크리에이터들의 주요 성과를 정리해 공개했다.', press:'머니투데이', pubDate:new Date(Date.now()-21600e3).toUTCString(), collectedAt:new Date(Date.now()-21600e3), link:'#'},
+  {keyword:'어쩔수없는윤화', title:'어쩔수없는윤화 신규 브랜드 협업 논란 일단락', description:'일부 논란이 제기됐던 협업 건에 대해 소속사 측이 공식 입장을 내며 상황이 정리됐다.', press:'디스패치', pubDate:new Date(Date.now()-25200e3).toUTCString(), collectedAt:new Date(Date.now()-25200e3), link:'#'},
+  {keyword:'오드타입', title:'오드타입, 이커머스 매출 전년比 40% 증가', description:'커머스 브랜드 오드타입이 크리에이터 협업을 통해 매출 성장을 이어가고 있다.', press:'전자신문', pubDate:new Date(Date.now()-28800e3).toUTCString(), collectedAt:new Date(Date.now()-28800e3), link:'#'},
+];
+
+/* ============ 상태 ============ */
+let allItems = [];
+let activeKeywords = new Set(); // 비어있으면 전체
+let keywordList = [];
+
+/* ============ 간이 감성 분류 (키워드 휴리스틱) ============ */
+const POS_WORDS = ['화제','완판','증가','호평','긍정','성장','인기','성공','수상','1위','최고','기대'];
+const NEG_WORDS = ['논란','비판','부정','하락','실패','악화','피소','고발','사과','문제','우려','종료'];
+function classifySentiment(text){
+  const t = text || '';
+  const pos = POS_WORDS.some(w => t.includes(w));
+  const neg = NEG_WORDS.some(w => t.includes(w));
+  if (pos && !neg) return 'pos';
+  if (neg && !pos) return 'neg';
+  return 'neu';
+}
+
+/* ============ 저장소 헬퍼 (일반 브라우저 localStorage 사용) ============ */
+async function loadAppsScriptUrl(){
+  try{ return localStorage.getItem('apps_script_url') || ''; }catch(e){ return ''; }
+}
+async function saveAppsScriptUrl(url){
+  try{ localStorage.setItem('apps_script_url', url); }catch(e){}
+}
+async function loadKeywords(){
+  try{
+    const v = localStorage.getItem('keyword_list');
+    return v ? JSON.parse(v) : null;
+  }catch(e){ return null; }
+}
+async function saveKeywords(list){
+  try{ localStorage.setItem('keyword_list', JSON.stringify(list)); }catch(e){}
+}
+
+/* ============ JSONP 요청 헬퍼 (CORS 없이 데이터 받아오기) ============ */
+function fetchViaJsonp(url){
+  return new Promise((resolve, reject) => {
+    const callbackName = 'jsonpCallback_' + Date.now();
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error('요청 시간 초과'));
+    }, 10000);
+
+    function cleanup(){
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    window[callbackName] = (data) => { cleanup(); resolve(data); };
+
+    const script = document.createElement('script');
+    const sep = url.includes('?') ? '&' : '?';
+    script.src = url + sep + 'callback=' + callbackName + '&t=' + Date.now();
+    script.onerror = () => { cleanup(); reject(new Error('스크립트 로드 실패')); };
+    document.body.appendChild(script);
+  });
+}
+
+/* ============ 데이터 로드 ============ */
+let usingServer = false; // 실데이터(서버) 연결 여부
+
+function applyServerData(data){
+  allItems = (data.items || []).map(it => ({...it, sentiment: classifySentiment((it.title||'') + (it.description||''))}));
+  keywordList = (data.keywords && data.keywords.length) ? data.keywords : [...new Set(allItems.map(i => i.keyword).filter(Boolean))];
+}
+
+async function fetchData(){
+  const url = await loadAppsScriptUrl();
+  const statusLine = document.getElementById('statusLine');
+  usingServer = false;
+
+  if (url){
+    statusLine.textContent = '데이터 불러오는 중...';
+    try{
+      const data = await fetchViaJsonp(url);
+      applyServerData(data);
+      usingServer = true;
+      statusLine.innerHTML = `실데이터 연결됨 · 총 <b>${allItems.length}</b>건 · ${data.updatedAt ? new Date(data.updatedAt).toLocaleString('ko-KR') : ''}`;
+    }catch(e){
+      statusLine.textContent = '연결 실패 · 데모 데이터로 표시 중 (URL 또는 배포 권한을 확인해주세요)';
+      allItems = DEMO_ITEMS.map(it => ({...it, sentiment: classifySentiment(it.title + it.description)}));
+      keywordList = [...new Set(allItems.map(i => i.keyword).filter(Boolean))];
+    }
+  } else {
+    statusLine.textContent = '데모 데이터 표시 중 · 실데이터 연결은 [데이터 연결 설정]에서';
+    allItems = DEMO_ITEMS.map(it => ({...it, sentiment: classifySentiment(it.title + it.description)}));
+    const storedKw = await loadKeywords();
+    keywordList = (storedKw && storedKw.length) ? storedKw : [...new Set(allItems.map(i => i.keyword).filter(Boolean))];
+  }
+
+  render();
+}
+
+/* ============ 렌더링 ============ */
+function timeAgo(dateStr){
+  const d = new Date(dateStr);
+  const diffMin = Math.floor((Date.now() - d.getTime())/60000);
+  if (diffMin < 60) return `${diffMin}분 전`;
+  const diffH = Math.floor(diffMin/60);
+  if (diffH < 24) return `${diffH}시간 전`;
+  return `${Math.floor(diffH/24)}일 전`;
+}
+
+function formatDate(dateStr){
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function render(){
+  renderChips();
+  renderCards();
+  renderStats();
+  renderTicker();
+}
+
+function renderChips(){
+  const chipList = document.getElementById('chipList');
+  chipList.innerHTML = '';
+  keywordList.forEach(kw => {
+    const count = allItems.filter(i => i.keyword === kw).length;
+    const div = document.createElement('div');
+    div.className = 'chip' + (activeKeywords.has(kw) ? ' active' : '');
+    div.innerHTML = `<span>${kw}</span><span><span class="count">${count}</span> <span class="chip-remove" title="목록에서 제거">×</span></span>`;
+    div.querySelector('span:first-child').onclick = () => {
+      if (activeKeywords.has(kw)) activeKeywords.delete(kw);
+      else activeKeywords.add(kw);
+      render();
+    };
+    div.querySelector('.chip-remove').onclick = async (ev) => {
+      ev.stopPropagation();
+      activeKeywords.delete(kw);
+      if (usingServer){
+        const url = await loadAppsScriptUrl();
+        try{
+          const data = await fetchViaJsonp(url + '?action=removeKeyword&keyword=' + encodeURIComponent(kw));
+          applyServerData(data);
+        }catch(e){ /* 다음 새로고침 때 다시 시도됨 */ }
+      } else {
+        keywordList = keywordList.filter(k => k !== kw);
+        await saveKeywords(keywordList);
+      }
+      render();
+    };
+    chipList.appendChild(div);
+  });
+}
+
+function getFilteredItems(){
+  if (activeKeywords.size === 0) return allItems;
+  return allItems.filter(i => activeKeywords.has(i.keyword));
+}
+
+function renderCards(){
+  const container = document.getElementById('cardsContainer');
+  const items = getFilteredItems().sort((a,b) => new Date(b.collectedAt||b.pubDate) - new Date(a.collectedAt||a.pubDate));
+  container.innerHTML = '';
+
+  if (items.length === 0){
+    container.innerHTML = `<div class="empty-state"><h4>표시할 기사가 없습니다</h4><p>필터를 해제하거나 새로고침을 눌러주세요.</p></div>`;
+    return;
+  }
+
+  items.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'article-card';
+    const sentClass = item.sentiment === 'pos' ? 'pos' : item.sentiment === 'neg' ? 'neg' : 'neu';
+    const sentLabel = item.sentiment === 'pos' ? '긍정' : item.sentiment === 'neg' ? '부정' : '중립';
+    card.innerHTML = `
+      <div class="card-top">
+        <div style="flex:1;">
+          <p class="card-title"><a href="${item.link || '#'}" target="_blank" rel="noopener">${item.title}</a></p>
+          <p class="card-desc">${item.description || ''}</p>
+        </div>
+      </div>
+      <div class="card-meta">
+        <span class="badge keyword">${item.keyword || '기타'}</span>
+        <span class="badge press">${item.press || '출처 미상'}</span>
+        <span class="badge ${sentClass}">${sentLabel}</span>
+        <span class="badge date">${formatDate(item.pubDate)}</span>
+        <span class="badge time">${timeAgo(item.pubDate || item.collectedAt)}</span>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function renderStats(){
+  const items = getFilteredItems();
+  document.getElementById('statTotal').textContent = items.length;
+  const todayCount = items.filter(i => {
+    const d = new Date(i.collectedAt || i.pubDate);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+  }).length;
+  document.getElementById('statToday').textContent = todayCount;
+
+  const pos = items.filter(i => i.sentiment === 'pos').length;
+  const neg = items.filter(i => i.sentiment === 'neg').length;
+  const neu = items.length - pos - neg;
+  const total = items.length || 1;
+
+  document.getElementById('sentimentBar').innerHTML = `
+    <div style="width:${pos/total*100}%;background:var(--pos)"></div>
+    <div style="width:${neu/total*100}%;background:var(--neu)"></div>
+    <div style="width:${neg/total*100}%;background:var(--neg)"></div>
+  `;
+  document.getElementById('pctPos').textContent = Math.round(pos/total*100) + '%';
+  document.getElementById('pctNeu').textContent = Math.round(neu/total*100) + '%';
+  document.getElementById('pctNeg').textContent = Math.round(neg/total*100) + '%';
+
+  const kwCounts = {};
+  items.forEach(i => { kwCounts[i.keyword] = (kwCounts[i.keyword]||0) + 1; });
+  const maxCount = Math.max(1, ...Object.values(kwCounts));
+  const kwBars = document.getElementById('kwBars');
+  kwBars.innerHTML = '';
+  Object.entries(kwCounts).sort((a,b) => b[1]-a[1]).slice(0,8).forEach(([kw,c]) => {
+    const row = document.createElement('div');
+    row.className = 'kw-bar-row';
+    row.innerHTML = `<span class="kw-name">${kw}</span><div class="kw-bar-track"><div class="kw-bar-fill" style="width:${c/maxCount*100}%"></div></div><span class="kw-bar-num">${c}</span>`;
+    kwBars.appendChild(row);
+  });
+}
+
+function renderTicker(){
+  const track = document.getElementById('tickerTrack');
+  const items = allItems.slice(0, 12);
+  const html = items.map(i => `<span>${i.press ? '['+i.press+'] ' : ''}${i.title}</span>`).join('');
+  track.innerHTML = html + html; // 이어붙여서 무한 스크롤 느낌
+}
+
+/* ============ AI 브리핑 (Anthropic API 호출) ============ */
+async function generateBriefing(){
+  const body = document.getElementById('briefingBody');
+  const sub = document.getElementById('briefingSub');
+  const items = getFilteredItems().slice(0, 40);
+
+  if (items.length === 0){
+    body.textContent = '브리핑을 생성할 기사가 없습니다.';
+    return;
+  }
+
+  body.innerHTML = '<span class="spinner"></span> 브리핑 생성 중...';
+  sub.textContent = `${items.length}건 기사 기준 · ${new Date().toLocaleString('ko-KR')}`;
+
+  const articleList = items.map(i => `- [${i.keyword}] ${i.title} (${i.press || '출처 미상'})`).join('\n');
+  const prompt = `당신은 MCN 회사 두호코퍼레이션 PR팀의 데일리 모니터링 브리핑을 작성하는 어시스턴트입니다.
+아래는 오늘 수집된 언론 보도 목록입니다. PR 실무자가 5분 안에 읽을 수 있는 브리핑을 한국어 합쇼체(~습니다/입니다)로 작성해주세요.
+
+형식:
+1) 한 줄 총평
+2) 주요 이슈 3~5개 (키워드별로 묶어서, 각 1~2문장)
+3) 주의가 필요한 부정/리스크 이슈가 있다면 별도로 강조
+
+기사 목록:
+${articleList}`;
+
+  try{
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        messages: [{ role: "user", content: prompt }]
+      })
+    });
+    const data = await response.json();
+    const text = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
+    body.textContent = text || '브리핑 생성에 실패했습니다. 다시 시도해주세요.';
+  }catch(e){
+    body.textContent = '브리핑 생성 중 오류가 발생했습니다: ' + e.message;
+  }
+}
+
+/* ============ 이벤트 바인딩 ============ */
+document.getElementById('refreshBtn').onclick = fetchData;
+document.getElementById('briefingBtn').onclick = () => {
+  document.getElementById('briefingModal').classList.add('show');
+  generateBriefing();
+};
+document.getElementById('settingsBtn').onclick = async () => {
+  document.getElementById('appsScriptUrl').value = await loadAppsScriptUrl();
+  document.getElementById('settingsModal').classList.add('show');
+};
+document.querySelectorAll('[data-close]').forEach(btn => {
+  btn.onclick = () => document.getElementById(btn.dataset.close).classList.remove('show');
+});
+document.getElementById('saveSettingsBtn').onclick = async () => {
+  const url = document.getElementById('appsScriptUrl').value.trim();
+  await saveAppsScriptUrl(url);
+  document.getElementById('settingsModal').classList.remove('show');
+  fetchData();
+};
+document.getElementById('addKeywordBtn').onclick = async () => {
+  const input = document.getElementById('newKeywordInput');
+  const val = input.value.trim();
+  if (!val || keywordList.includes(val)) return;
+  input.value = '';
+  const statusLine = document.getElementById('statusLine');
+
+  if (usingServer){
+    const url = await loadAppsScriptUrl();
+    statusLine.textContent = `"${val}" 키워드로 기사를 가져오는 중... (몇 초 걸릴 수 있습니다)`;
+    try{
+      const data = await fetchViaJsonp(url + '?action=addKeyword&keyword=' + encodeURIComponent(val));
+      applyServerData(data);
+      statusLine.innerHTML = `"${val}" 키워드 추가됨 · 신규 기사 <b>${data.addedCount || 0}</b>건 수집`;
+    }catch(e){
+      statusLine.textContent = `"${val}" 추가 실패: ${e.message}`;
+    }
+  } else {
+    keywordList.push(val);
+    await saveKeywords(keywordList);
+  }
+  render();
+};
+document.getElementById('newKeywordInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') document.getElementById('addKeywordBtn').click();
+});
+
+/* ============ 초기 로드 ============ */
+fetchData();
+setInterval(fetchData, 5 * 60 * 1000); // 5분마다 자동 새로고침
+</script>
+</body>
+</html>
