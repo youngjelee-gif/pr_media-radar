@@ -303,9 +303,14 @@ function classifySentiment(text){
   return 'neu';
 }
 
+/* ============ 기본 데이터 연결 주소 ============ */
+// 여기에 본인의 Apps Script 웹 앱 URL을 넣어두면, 누가 이 사이트를 열어도
+// 별도 설정 없이 바로 실데이터가 보입니다.
+const DEFAULT_APPS_SCRIPT_URL = 'https://script.google.com/a/macros/doohocorp.com/s/AKfycbzfhCOJZpghqPGaIu9KHYXklGNqZC35p6JPSsYl1SeWGG6-YeJfmaJlBWLYiHJgGX1PrQ/exec';
+
 /* ============ 저장소 헬퍼 (일반 브라우저 localStorage 사용) ============ */
 async function loadAppsScriptUrl(){
-  try{ return localStorage.getItem('apps_script_url') || ''; }catch(e){ return ''; }
+  try{ return localStorage.getItem('apps_script_url') || DEFAULT_APPS_SCRIPT_URL; }catch(e){ return DEFAULT_APPS_SCRIPT_URL; }
 }
 async function saveAppsScriptUrl(url){
   try{ localStorage.setItem('apps_script_url', url); }catch(e){}
