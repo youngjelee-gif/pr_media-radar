@@ -436,7 +436,7 @@ function getFilteredItems(){
 
 function renderCards(){
   const container = document.getElementById('cardsContainer');
-  const items = getFilteredItems().sort((a,b) => new Date(b.collectedAt||b.pubDate) - new Date(a.collectedAt||a.pubDate));
+  const items = getFilteredItems().sort((a,b) => new Date(b.pubDate||b.collectedAt) - new Date(a.pubDate||a.collectedAt));
   container.innerHTML = '';
 
   if (items.length === 0){
