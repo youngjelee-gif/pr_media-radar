@@ -329,6 +329,13 @@ function scoreBadgeLabel(score){
   return '일반';
 }
 
+function formatDate(dateStr){
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`;
+}
+
 function renderCards(){
   const container = document.getElementById('cardsContainer');
   const items = getFilteredItems().sort((a,b) => (b.crisisScore - a.crisisScore) || (new Date(b.collectedAt) - new Date(a.collectedAt)));
@@ -342,6 +349,9 @@ function renderCards(){
   items.forEach(item => {
     const card = document.createElement('div');
     card.className = 'mention-card' + (item.crisisScore >= 3 ? ' hot' : '');
+    const dateBadge = item.postDate
+      ? `<span class="badge time">작성일 ${formatDate(item.postDate)}</span>`
+      : `<span class="badge time">작성일 확인 불가</span>`;
     card.innerHTML = `
       <p class="card-title"><a href="${item.link || '#'}" target="_blank" rel="noopener">${item.title}</a></p>
       <p class="card-desc">${item.snippet || ''}</p>
@@ -349,7 +359,8 @@ function renderCards(){
         <span class="badge keyword">${item.keyword || '기타'}</span>
         <span class="badge source">${item.source || '커뮤니티'}</span>
         <span class="badge ${scoreBadgeClass(item.crisisScore)}">${scoreBadgeLabel(item.crisisScore)}</span>
-        <span class="badge time">${timeAgo(item.collectedAt)}</span>
+        ${dateBadge}
+        <span class="badge time">수집 ${timeAgo(item.collectedAt)}</span>
       </div>
     `;
     container.appendChild(card);
